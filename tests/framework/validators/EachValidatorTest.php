@@ -7,11 +7,11 @@
 
 namespace yiiunit\framework\validators;
 
-use yii\db\ArrayExpression;
 use yii\validators\EachValidator;
 use yiiunit\data\base\ArrayAccessObject;
-use yiiunit\data\base\TraversableObject;
+use yiiunit\data\base\Speaker;
 use yiiunit\data\validators\models\FakedValidationModel;
+use yiiunit\data\validators\models\ValidatorTestTypedPropModel;
 use yiiunit\TestCase;
 
 /**
@@ -199,5 +199,43 @@ class EachValidatorTest extends TestCase
         $this->assertFalse($model->hasErrors('array'));
 
         $this->assertTrue($validator->validate($model->attr_array));
+    }
+
+    /**
+     * @see https://github.com/yiisoft/yii2/issues/17810
+     *
+     * Do not reuse model property for storing value
+     * of different type during validation.
+     * (ie: public array $dummy; where $dummy is array of booleans,
+     * validator will try to assign these booleans one by one to $dummy)
+     */
+    public function testTypedProperties()
+    {
+        if (PHP_VERSION_ID < 70400) {
+            $this->markTestSkipped('Can not be tested on PHP < 7.4');
+            return;
+        }
+
+        $model = new ValidatorTestTypedPropModel();
+
+        $validator = new EachValidator(['rule' => ['boolean']]);
+        $validator->validateAttribute($model, 'arrayTypedProperty');
+        $this->assertFalse($model->hasErrors('arrayTypedProperty'));
+    }
+
+    /**
+     * @see https://github.com/yiisoft/yii2/issues/18011
+     */
+    public function testErrorMessage()
+    {
+        $model = new Speaker();
+        $model->customLabel = ['invalid_ip'];
+
+        $validator = new EachValidator(['rule' => ['ip']]);
+        $validator->validateAttribute($model, 'customLabel');
+        $validator->validateAttribute($model, 'firstName');
+
+        $this->assertEquals('This is the custom label must be a valid IP address.', $model->getFirstError('customLabel'));
+        $this->assertEquals('First Name is invalid.', $model->getFirstError('firstName'));
     }
 }
